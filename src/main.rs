@@ -27,4 +27,38 @@ struct Entry<T> {
     next: u16,
 }
 
+impl<T, const N: usize> Default for LRUCache<T, N> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<T, const N: usize> LRUCache<T, N> {
+    // create a empty cache
+    pub const fn new() -> Self {
+        assert!(N < u16::MAX as usize, "capacity overflow");
+        LRUCache {
+            entries: ArrayVec::new_const(),
+            head: 0,
+            tail: 0,
+        }
+    }
+
+    // Insert given key in cache
+
+    pub fn insert(&mut self, val: T) -> Option<T> {
+        let new_entry = Entry {
+            val,
+            prev: 0,
+            next: 0,
+        };
+
+        // If cache is full, replace the oldest entry
+        if self.entries.is_full() {
+            let i = self.pop_back();
+            let old_entry = replace(self.entry(i), i);
+        }
+    }
+}
+
 fn main() {}
