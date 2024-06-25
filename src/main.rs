@@ -7,7 +7,7 @@
 #![deny(unsafe_code)]
 
 use arrayvec::ArrayVec;
-use core::mem::replace; // Replaces the previous with the new with its reference to the old memory
+use core::{mem::replace, num::NonZero}; // Replaces the previous with the new with its reference to the old memory
 
 #[derive(Debug, Clone)]
 
@@ -36,7 +36,6 @@ impl<T, const N: usize> Default for LRUCache<T, N> {
 impl<T, const N: usize> LRUCache<T, N> {
     // create a empty cache
     pub const fn new() -> Self {
-        assert!(N < u16::MAX as usize, "capacity overflow");
         LRUCache {
             entries: ArrayVec::new_const(),
             head: 0,
@@ -45,7 +44,6 @@ impl<T, const N: usize> LRUCache<T, N> {
     }
 
     // Insert given key in cache
-
     pub fn insert(&mut self, val: T) -> Option<T> {
         let new_entry = Entry {
             val,
@@ -56,8 +54,34 @@ impl<T, const N: usize> LRUCache<T, N> {
         // If cache is full, replace the oldest entry
         if self.entries.is_full() {
             let i = self.pop_back();
-            let old_entry = replace(self.entry(i), i);
+            let old_entry = replace(self.entry(i), new_entry);
+            self.push_front(i);
+            Some(old_entry.val)
+        } else {
+            let i = self.entries.len() as u16;
+            self.entries.push(new_entry);
+            self.push_front(i);
+            None
         }
+    }
+
+    pub fn entry(&mut self, i: u16) -> &mut Entry<T> {
+        &mut self.entries[i as usize]
+    }
+
+    pub fn pop_back(&mut self) -> u16 {
+        let new_tail = self.entry(self.tail).prev;
+        replace(&mut self.tail, new_tail)
+    }
+
+    pub fn push_front(&mut self, i: u16) {
+        if self.entries.len() == 1 {
+            self.tail = i;
+        } else {
+            self.entry(i).next = self.head;
+            self.entry(self.head).prev = i;
+        }
+        self.head = i;
     }
 }
 
