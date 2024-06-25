@@ -83,6 +83,24 @@ impl<T, const N: usize> LRUCache<T, N> {
         }
         self.head = i;
     }
+
+    // Returns the number of elements in the cache
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    // Returns if cache is empty or not
+    pub fn is_empty(&self) -> bool {
+        if self.len() == 0 {
+            return true;
+        }
+        false
+    }
+
+    // Clears all the elements in cache
+    pub fn clear(&mut self) {
+        self.entries.clear()
+    }
 }
 
 fn main() {}
