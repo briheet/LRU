@@ -65,6 +65,19 @@ impl<T, const N: usize> LRUCache<T, N> {
         }
     }
 
+    // Returns the first item in the cache that matches the predicate
+    // Make it most recently used on hit
+    pub fn find<F>(&mut self, pred: F) -> Option<&mut T>
+    where
+        F: FnMut(&T) -> bool,
+    {
+        if self.touch(pred) {
+            self.front_mut()
+        } else {
+            None
+        }
+    }
+
     pub fn entry(&mut self, i: u16) -> &mut Entry<T> {
         &mut self.entries[i as usize]
     }
@@ -85,11 +98,13 @@ impl<T, const N: usize> LRUCache<T, N> {
     }
 
     // Returns the number of elements in the cache
+    #[inline] // https://nnethercote.github.io/perf-book/inlining.html
     pub fn len(&self) -> usize {
         self.entries.len()
     }
 
     // Returns if cache is empty or not
+    #[inline] // https://nnethercote.github.io/perf-book/inlining.html
     pub fn is_empty(&self) -> bool {
         if self.len() == 0 {
             return true;
@@ -98,8 +113,85 @@ impl<T, const N: usize> LRUCache<T, N> {
     }
 
     // Clears all the elements in cache
+    #[inline] // https://nnethercote.github.io/perf-book/inlining.html
     pub fn clear(&mut self) {
         self.entries.clear()
+    }
+
+    // Returns a mutable reference to the front entry in the list
+    pub fn front_mut(&mut self) -> Option<&mut T> {
+        self.entries.get_mut(self.head as usize).map(|e| &mut e.val)
+    }
+
+    // Touch a given entry, putting it first in the list.
+    #[inline]
+    fn touch_index(&mut self, i: u16) {
+        if i != self.head {
+            self.remove(i);
+            self.push_front(i);
+        }
+    }
+
+    // Remove an entry from the linked list.
+    fn remove(&mut self, i: u16) {
+        let prev = self.entry(i).prev;
+        let next = self.entry(i).next;
+
+        if i == self.head {
+            self.head = next;
+        } else {
+            self.entry(prev).next = next;
+        }
+
+        if i == self.tail {
+            self.tail = prev;
+        } else {
+            self.entry(next).prev = prev;
+        }
+    }
+
+    // Touch the first item in the cache that matches the given predicate and marks it as recently
+    // used, Returns true or false
+    pub fn touch<F>(&mut self, mut pred: F) -> bool
+    where
+        F: FnMut(&T) -> bool,
+    {
+        let mut iter = self.iter_mut();
+        while let Some((i, val)) = iter.next() {
+            if pred(val) {
+                self.touch_index(i);
+                return true;
+            }
+        }
+        false
+    }
+
+    // Iterate mutably over the contents of this cache in order from most-recently-used to
+    // least-recently-used.
+    fn iter_mut(&mut self) -> IterMut<'_, T, N> {
+        IterMut {
+            pos: self.head,
+            cache: self,
+        }
+    }
+}
+
+struct IterMut<'a, T, const N: usize> {
+    cache: &'a mut LRUCache<T, N>,
+    pos: u16,
+}
+
+impl<'a, T, const N: usize> IterMut<'a, T, N> {
+    fn next(&mut self) -> Option<(u16, &mut T)> {
+        let index = self.pos;
+        let entry = self.cache.entries.get_mut(index as usize)?;
+
+        self.pos = if index == self.cache.tail {
+            N as u16 // Point past the end of the array to signal we are done.
+        } else {
+            entry.next
+        };
+        Some((index, &mut entry.val))
     }
 }
 
